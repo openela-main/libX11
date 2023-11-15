@@ -1,0 +1,63 @@
+From 77f8517710a724fa1f29de8ad806692782f962bd Mon Sep 17 00:00:00 2001
+From: Frediano Ziglio <fziglio@redhat.com>
+Date: Wed, 29 Jan 2020 09:06:54 +0000
+Subject: [PATCH libX11] Fix poll_for_response race condition
+
+In poll_for_response is it possible that event replies are skipped
+and a more up to date message reply is returned.
+This will cause next poll_for_event call to fail aborting the program.
+
+This was proved using some slow ssh tunnel or using some program
+to slow down server replies (I used a combination of xtrace and strace).
+
+How the race happens:
+- program enters into poll_for_response;
+- poll_for_event is called but the server didn't still send the reply;
+- pending_requests is not NULL because we send a request (see call
+  to  append_pending_request in _XSend);
+- xcb_poll_for_reply64 is called from poll_for_response;
+- xcb_poll_for_reply64 will read from server, at this point
+  server reply with an event (say sequence N) and the reply to our
+  last request (say sequence N+1);
+- xcb_poll_for_reply64 returns the reply for the request we asked;
+- last_request_read is set to N+1 sequence in poll_for_response;
+- poll_for_response returns the response to the request;
+- poll_for_event is called (for instance from another poll_for_response);
+- event with sequence N is retrieved;
+- the N sequence is widen, however, as the "new" number computed from
+  last_request_read is less than N the number is widened to N + 2^32
+  (assuming last_request_read is still contained in 32 bit);
+- poll_for_event enters the nested if statement as req is NULL;
+- we compare the widen N (which now does not fit into 32 bit) with
+  request (which fits into 32 bit) hitting the throw_thread_fail_assert.
+
+I propose to change the widen to not go too far from the wide number
+instead of supposing the result is always bigger than the wide number
+passed.
+
+Signed-off-by: Frediano Ziglio <fziglio@redhat.com>
+---
+ src/xcb_io.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/src/xcb_io.c b/src/xcb_io.c
+index 6a12d150..2aacbda3 100644
+--- a/src/xcb_io.c
++++ b/src/xcb_io.c
+@@ -201,12 +201,10 @@ static int handle_error(Display *dpy, xError *err, Bool in_XReply)
+ }
+ 
+ /* Widen a 32-bit sequence number into a 64bit (uint64_t) sequence number.
+- * Treating the comparison as a 1 and shifting it avoids a conditional branch.
+  */
+ static void widen(uint64_t *wide, unsigned int narrow)
+ {
+-	uint64_t new = (*wide & ~((uint64_t)0xFFFFFFFFUL)) | narrow;
+-	*wide = new + (((uint64_t)(new < *wide)) << 32);
++	*wide += (int32_t) (narrow - *wide);
+ }
+ 
+ /* Thread-safety rules:
+-- 
+2.23.0
+
