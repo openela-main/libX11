@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.7.0
-Release: 7%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 8%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 URL: http://www.x.org
 
@@ -19,6 +19,8 @@ Source0: https://xorg.freedesktop.org/archive/individual/lib/%{name}-%{version}.
 
 Patch2: dont-forward-keycode-0.patch
 Patch3: 0001-makekeys-handle-the-new-_EVDEVK-xorgproto-symbols.patch
+# CVE-2023-3138
+Patch4: 0001-InitExt.c-Add-bounds-checks-for-extension-request-ev.patch
 
 BuildRequires: make
 BuildRequires: xorg-x11-util-macros >= 1.11
@@ -122,6 +124,10 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Wed Jul 05 2023 Olivier Fourdan <ofourdan@redhat.com> - 1.7.0-8
+- CVE fix for: CVE-2023-3138
+  Resolve: rhbz#2213763
+
 * Mon Aug 09 2021 Mohan Boddu <mboddu@redhat.com> - 1.7.0-7
 - Rebuilt for IMA sigs, glibc 2.34, aarch64 flags
   Related: rhbz#1991688
