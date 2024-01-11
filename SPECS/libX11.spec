@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.6.8
-Release: 5%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 6%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://www.x.org
@@ -25,6 +25,8 @@ Patch4: 0001-Fix-poll_for_response-race-condition.patch
 # CVE-2020-14363
 Patch5: 0001-Fix-an-integer-overflow-in-init_om.patch
 Patch6: CVE-2021-31535.patch
+# CVE-2023-3138
+Patch7: 0001-InitExt.c-Add-bounds-checks-for-extension-request-ev.patch
 
 BuildRequires: xorg-x11-util-macros >= 1.11
 BuildRequires: pkgconfig(xproto) >= 7.0.15
@@ -70,6 +72,7 @@ libX11/libxcb interoperability library
 %patch4 -p1 -b .race
 %patch5 -p1 -b .fix-an-integer-overflow-in-init_om
 %patch6 -p1 -b .cve-2021-31535
+%patch7 -p1 -b .cve-2023-3138
 
 %build
 autoreconf -v --install --force
@@ -134,6 +137,10 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Wed Jul 05 2023 Olivier Fourdan <ofourdan@redhat.com> - 1.6.8-6
+- CVE fix for: CVE-2023-3138
+  Resolve: rhbz#2213762
+
 * Thu Aug 12 2021 Adam Jackson <ajax@redhat.com> - 1.6.8-5
 - Fix CVE-2021-31535 (#1962439)
 
