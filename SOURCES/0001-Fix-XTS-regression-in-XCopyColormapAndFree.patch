@@ -1,0 +1,64 @@
+From a515545065ce6e1924de4bc50aaae7ec9b48cfad Mon Sep 17 00:00:00 2001
+From: Adam Jackson <ajax@redhat.com>
+Date: Wed, 11 Dec 2019 11:53:11 -0500
+Subject: [PATCH libX11] Fix XTS regression in XCopyColormapAndFree
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+XCopyColormapAndFree/5 threw an assertion:
+
+    520|4 5 00014017 1 2|Assertion XCopyColormapAndFree-5.(A)
+    520|4 5 00014017 1 3|When a colourmap argument does not name a valid colourmap,
+    520|4 5 00014017 1 4|then a BadColor error occurs.
+    520|4 5 00014017 1 5|METH: Create a bad colourmap by creating and freeing a colourmap.
+    520|4 5 00014017 1 6|METH: Call test function using bad colourmap as the colourmap argument.
+    520|4 5 00014017 1 7|METH: Verify that a BadColor error occurs.
+    520|4 5 00014017 1 8|unexpected signal 6 (SIGABRT) received
+    220|4 5 2 15:05:53|UNRESOLVED
+    410|4 5 1 15:05:53|IC End
+    510|4|system 0: Abandoning testset: caught unexpected signal 11 (SIGSEGV)
+
+More specifically:
+
+    lt-XCopyColormapAndFree: xcb_io.c:533: _XAllocID: Assertion `ret != inval_id' failed.
+
+This bug was introduced (by following my advice, d'oh) in:
+
+    commit 99a2cf1aa0b58391078d5d3edf0a7dab18c7745d
+    Author: Tapani Pälli <tapani.palli@intel.com>
+    Date:   Mon May 13 08:29:49 2019 +0300
+
+        Protect colormap add/removal with display lock
+
+In that patch we moved the call to _XcmsCopyCmapRecAndFree inside the
+display lock. The problem is said routine has side effects, including
+trying to implicitly create a colormap in some cases. Since we don't run
+the XID handler until SyncHandle() we would see inconsistent internal
+xlib state, triggering the above assert.
+
+Fix this by dropping and re-taking the display lock before calling into
+XCMS.
+---
+ src/CopyCmap.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/CopyCmap.c b/src/CopyCmap.c
+index b4954b01..b37aba73 100644
+--- a/src/CopyCmap.c
++++ b/src/CopyCmap.c
+@@ -53,6 +53,11 @@ Colormap XCopyColormapAndFree(
+     mid = req->mid = XAllocID(dpy);
+     req->srcCmap = src_cmap;
+ 
++    /* re-lock the display to keep XID handling in sync */
++    UnlockDisplay(dpy);
++    SyncHandle();
++    LockDisplay(dpy);
++
+ #if XCMS
+     _XcmsCopyCmapRecAndFree(dpy, src_cmap, mid);
+ #endif
+-- 
+2.23.0
+
