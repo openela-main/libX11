@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.7.0
-Release: 8%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 9%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 URL: http://www.x.org
 
@@ -21,6 +21,17 @@ Patch2: dont-forward-keycode-0.patch
 Patch3: 0001-makekeys-handle-the-new-_EVDEVK-xorgproto-symbols.patch
 # CVE-2023-3138
 Patch4: 0001-InitExt.c-Add-bounds-checks-for-extension-request-ev.patch
+
+# CVE-2023-43785
+Patch5: 0001-CVE-2023-43785-out-of-bounds-memory-access-in-_XkbRe.patch
+
+# CVE-2023-43786
+Patch6: 0001-CVE-2023-43786-stack-exhaustion-from-infinite-recurs.patch
+Patch7: 0002-XPutImage-clip-images-to-maximum-height-width-allowe.patch
+Patch8: 0003-XCreatePixmap-trigger-BadValue-error-for-out-of-rang.patch
+
+# CVE-2023-43787
+Patch9: 0001-CVE-2023-43787-Integer-overflow-in-XCreateImage-lead.patch
 
 BuildRequires: make
 BuildRequires: xorg-x11-util-macros >= 1.11
@@ -124,6 +135,13 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Wed Oct 11 2023 José Expósito <jexposit@redhat.com> - 1.7.0-9
+- Fix CVE-2023-43785: out-of-bounds memory access in _XkbReadKeySyms()
+- Fix CVE-2023-43786: stack exhaustion from infinite recursion in
+  PutSubImage()
+- Fix CVE-2023-43787: integer overflow in XCreateImage() leading to
+  a heap overflow
+
 * Wed Jul 05 2023 Olivier Fourdan <ofourdan@redhat.com> - 1.7.0-8
 - CVE fix for: CVE-2023-3138
   Resolve: rhbz#2213763
