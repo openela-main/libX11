@@ -1,0 +1,166 @@
+From 8c92ef59890c6d6e2be456658d3b9c145eda8629 Mon Sep 17 00:00:00 2001
+From: Keith Packard <keithp@keithp.com>
+Date: Sat, 7 Nov 2020 22:22:47 -0800
+Subject: [PATCH libX11] Avoid recursing through _XError due to sequence
+ adjustment
+
+This patch is based on research done by Dmitry Osipenko to uncover the
+cause of a large class of Xlib lockups.
+
+_XError must unlock and re-lock the display around the call to the
+user error handler function. When re-locking the display, two
+functions are called to ensure that the display is ready to generate a request:
+
+    _XIDHandler(dpy);
+    _XSeqSyncFunction(dpy);
+
+The first ensures that there is at least one XID available to use
+(possibly calling _xcb_generate_id to do so). The second makes sure a
+reply is received at least every 65535 requests to keep sequence
+numbers in sync (possibly generating a GetInputFocus request and
+synchronously awaiting the reply).
+
+If the second of these does generate a GetInputFocus request and wait
+for the reply, then a pending error will cause recursion into _XError,
+which deadlocks the display.
+
+One seemingly easy fix is to have _XError avoid those calls by
+invoking InternalLockDisplay instead of LockDisplay. That function
+does everything that LockDisplay does *except* call those final two
+functions which may end up receiving an error.
+
+However, that doesn't protect the system from applications which call
+some legal Xlib function from within their error handler. Any Xlib
+function which cannot generate protocol or wait for events is valid,
+including many which invoke LockDisplay.
+
+What we need to do is make LockDisplay skip these two function calls
+precisely when it is called from within the _XError context for the
+same display.
+
+This patch accomplishes this by creating a list of threads in the
+display which are in _XError, and then having LockDisplay check the
+current thread against those list elements.
+
+Inspired-by: Dmitry Osipenko <digetx@gmail.com>
+Signed-off-by: Keith Packard <keithp@keithp.com>
+Tested-by: Dmitry Osipenko <digetx@gmail.com>
+Reviewed-by: Dmitry Osipenko <digetx@gmail.com>
+(cherry picked from commit 30ccef3a48029bf4fc31d4abda2d2778d0ad6277)
+---
+ include/X11/Xlibint.h |  2 ++
+ src/OpenDis.c         |  1 +
+ src/XlibInt.c         | 10 ++++++++++
+ src/locking.c         | 12 ++++++++++++
+ src/locking.h         | 12 ++++++++++++
+ 5 files changed, 37 insertions(+)
+
+diff --git a/include/X11/Xlibint.h b/include/X11/Xlibint.h
+index 6b95bcf7..09078e3f 100644
+--- a/include/X11/Xlibint.h
++++ b/include/X11/Xlibint.h
+@@ -202,6 +202,8 @@ struct _XDisplay
+ 	unsigned long last_request_read_upper32bit;
+ 	unsigned long request_upper32bit;
+ #endif
++
++	struct _XErrorThreadInfo *error_threads;
+ };
+ 
+ #define XAllocIDs(dpy,ids,n) (*(dpy)->idlist_alloc)(dpy,ids,n)
+diff --git a/src/OpenDis.c b/src/OpenDis.c
+index 82723578..85901168 100644
+--- a/src/OpenDis.c
++++ b/src/OpenDis.c
+@@ -201,6 +201,7 @@ XOpenDisplay (
+ 	X_DPY_SET_LAST_REQUEST_READ(dpy, 0);
+ 	dpy->default_screen = iscreen;  /* Value returned by ConnectDisplay */
+ 	dpy->last_req = (char *)&_dummy_request;
++	dpy->error_threads = NULL;
+ 
+ 	/* Initialize the display lock */
+ 	if (InitDisplayLock(dpy) != 0) {
+diff --git a/src/XlibInt.c b/src/XlibInt.c
+index 4e45e62b..8771b791 100644
+--- a/src/XlibInt.c
++++ b/src/XlibInt.c
+@@ -1482,6 +1482,11 @@ int _XError (
+     if (_XErrorFunction != NULL) {
+ 	int rtn_val;
+ #ifdef XTHREADS
++	struct _XErrorThreadInfo thread_info = {
++		.error_thread = xthread_self(),
++		.next = dpy->error_threads
++	}, **prev;
++	dpy->error_threads = &thread_info;
+ 	if (dpy->lock)
+ 	    (*dpy->lock->user_lock_display)(dpy);
+ 	UnlockDisplay(dpy);
+@@ -1491,6 +1496,11 @@ int _XError (
+ 	LockDisplay(dpy);
+ 	if (dpy->lock)
+ 	    (*dpy->lock->user_unlock_display)(dpy);
++
++	/* unlink thread_info from the list */
++	for (prev = &dpy->error_threads; *prev != &thread_info; prev = &(*prev)->next)
++		;
++	*prev = thread_info.next;
+ #endif
+ 	return rtn_val;
+     } else {
+diff --git a/src/locking.c b/src/locking.c
+index 9f4fe067..bcadc857 100644
+--- a/src/locking.c
++++ b/src/locking.c
+@@ -453,6 +453,9 @@ static void _XLockDisplay(
+     XTHREADS_FILE_LINE_ARGS
+     )
+ {
++#ifdef XTHREADS
++    struct _XErrorThreadInfo *ti;
++#endif
+ #ifdef XTHREADS_WARN
+     _XLockDisplayWarn(dpy, file, line);
+ #else
+@@ -460,6 +463,15 @@ static void _XLockDisplay(
+ #endif
+     if (dpy->lock->locking_level > 0)
+ 	_XDisplayLockWait(dpy);
++#ifdef XTHREADS
++    /*
++     * Skip the two function calls below which may generate requests
++     * when LockDisplay is called from within _XError.
++     */
++    for (ti = dpy->error_threads; ti; ti = ti->next)
++	    if (ti->error_thread == xthread_self())
++		    return;
++#endif
+     _XIDHandler(dpy);
+     _XSeqSyncFunction(dpy);
+ }
+diff --git a/src/locking.h b/src/locking.h
+index 5251a60c..59fc866e 100644
+--- a/src/locking.h
++++ b/src/locking.h
+@@ -149,6 +149,18 @@ typedef struct _LockInfoRec {
+ 	xmutex_t	lock;
+ } LockInfoRec;
+ 
++/* A list of threads currently invoking error handlers on this display
++ * LockDisplay operates differently for these threads, avoiding
++ * generating any requests or reading any events as that can cause
++ * recursion into the error handling code, which will deadlock the
++ * thread.
++ */
++struct _XErrorThreadInfo
++{
++    struct _XErrorThreadInfo *next;
++    xthread_t error_thread;
++};
++
+ /* XOpenDis.c */
+ extern int (*_XInitDisplayLock_fn)(Display *dpy);
+ extern void (*_XFreeDisplayLock_fn)(Display *dpy);
+-- 
+2.43.0
+

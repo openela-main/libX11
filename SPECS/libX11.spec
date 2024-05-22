@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.6.8
-Release: 6%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 8%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://www.x.org
@@ -27,6 +27,20 @@ Patch5: 0001-Fix-an-integer-overflow-in-init_om.patch
 Patch6: CVE-2021-31535.patch
 # CVE-2023-3138
 Patch7: 0001-InitExt.c-Add-bounds-checks-for-extension-request-ev.patch
+
+# CVE-2023-43785
+Patch8: 0001-CVE-2023-43785-out-of-bounds-memory-access-in-_XkbRe.patch
+
+# CVE-2023-43786
+Patch9: 0001-CVE-2023-43786-stack-exhaustion-from-infinite-recurs.patch
+Patch10: 0002-XPutImage-clip-images-to-maximum-height-width-allowe.patch
+Patch11: 0003-XCreatePixmap-trigger-BadValue-error-for-out-of-rang.patch
+
+# CVE-2023-43787
+Patch12: 0001-CVE-2023-43787-Integer-overflow-in-XCreateImage-lead.patch
+
+# RHEL-23452
+Patch13: 0001-Avoid-recursing-through-_XError-due-to-sequence-adju.patch
 
 BuildRequires: xorg-x11-util-macros >= 1.11
 BuildRequires: pkgconfig(xproto) >= 7.0.15
@@ -73,6 +87,12 @@ libX11/libxcb interoperability library
 %patch5 -p1 -b .fix-an-integer-overflow-in-init_om
 %patch6 -p1 -b .cve-2021-31535
 %patch7 -p1 -b .cve-2023-3138
+%patch8 -p1 -b .cve-2023-43785
+%patch9 -p1 -b .cve-2023-43786
+%patch10 -p1 -b .xputimage-clip-images-to-maximum-height-width-allowe
+%patch11 -p1 -b .xcreatepixmap-trigger-badvalue-error-for-out-of-rang
+%patch12 -p1 -b .cve-2023-43787
+%patch13 -p1 -b .rhel-23452
 
 %build
 autoreconf -v --install --force
@@ -137,6 +157,16 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Tue Jan 30 2024 Olivier Fourdan <ofourdan@redhat.com> - 1.6.8-8
+- Backport fix for Xlib lockups due to recursive XError (RHEL-23452)
+
+* Wed Oct 11 2023 José Expósito <jexposit@redhat.com> - 1.6.8-7
+- Fix CVE-2023-43785: out-of-bounds memory access in _XkbReadKeySyms()
+- Fix CVE-2023-43786: stack exhaustion from infinite recursion in
+  PutSubImage()
+- Fix CVE-2023-43787: integer overflow in XCreateImage() leading to
+  a heap overflow
+
 * Wed Jul 05 2023 Olivier Fourdan <ofourdan@redhat.com> - 1.6.8-6
 - CVE fix for: CVE-2023-3138
   Resolve: rhbz#2213762
