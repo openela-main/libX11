@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.6.8
-Release: 8%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 9%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://www.x.org
@@ -41,6 +41,9 @@ Patch12: 0001-CVE-2023-43787-Integer-overflow-in-XCreateImage-lead.patch
 
 # RHEL-23452
 Patch13: 0001-Avoid-recursing-through-_XError-due-to-sequence-adju.patch
+
+# https://issues.redhat.com/browse/RHEL-58444
+Patch14: 0001-imDefLkup-verify-that-a-pointer-isn-t-NULL-before-us.patch
 
 BuildRequires: xorg-x11-util-macros >= 1.11
 BuildRequires: pkgconfig(xproto) >= 7.0.15
@@ -93,6 +96,7 @@ libX11/libxcb interoperability library
 %patch11 -p1 -b .xcreatepixmap-trigger-badvalue-error-for-out-of-rang
 %patch12 -p1 -b .cve-2023-43787
 %patch13 -p1 -b .rhel-23452
+%patch14 -p1 -b .rhel-58444
 
 %build
 autoreconf -v --install --force
@@ -157,6 +161,10 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Fri Sep 13 2024 José Expósito <jexposit@redhat.com> - 1.6.8-9
+- Backport NULL check to avoid a crash
+  Resolves: https://issues.redhat.com/browse/RHEL-58444
+
 * Tue Jan 30 2024 Olivier Fourdan <ofourdan@redhat.com> - 1.6.8-8
 - Backport fix for Xlib lockups due to recursive XError (RHEL-23452)
 
