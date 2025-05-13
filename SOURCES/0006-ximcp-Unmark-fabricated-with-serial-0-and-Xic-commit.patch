@@ -1,0 +1,82 @@
+From 546a51348322d83a57fd9b8c1e42b44fbe970368 Mon Sep 17 00:00:00 2001
+From: Takao Fujiwara <tfujiwar@redhat.com>
+Date: Fri, 26 Apr 2024 01:29:34 +0900
+Subject: [PATCH libX11 6/7] ximcp: Unmark fabricated with serial 0 and Xic
+ commit_info
+
+GTK2 XIM resets the XKeyEvent serial to 0 even if _XimCommitRecv()
+sets the serial so now checks if the events are sent with
+Xic->private.proto.commit_info.
+
+Closes: !246
+Part-of: <https://gitlab.freedesktop.org/xorg/lib/libx11/-/merge_requests/246>
+(cherry picked from commit 898746f9b1fb384d6d24ed827c836ec8a0b3da3b)
+---
+ modules/im/ximcp/imDefFlt.c  |  4 ++--
+ modules/im/ximcp/imDefLkup.c | 12 +++++++++++-
+ src/xlibi18n/XimintP.h       |  1 +
+ 3 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/modules/im/ximcp/imDefFlt.c b/modules/im/ximcp/imDefFlt.c
+index 76d63e88..3dfbf8cd 100644
+--- a/modules/im/ximcp/imDefFlt.c
++++ b/modules/im/ximcp/imDefFlt.c
+@@ -145,7 +145,7 @@ _XimProtoKeypressFilter(
+ 
+     if ((ev->keycode == 0) || _XimIsFabricatedSerial(im, ev)) {
+ 	_XimPendingFilter(ic);
+-	_XimUnfabricateSerial(im, ev);
++	_XimUnfabricateSerial(im, ic, ev);
+ 	return NOTFILTERD;
+     }
+     /* w=0 is used for _XimIsFabricatedSerial() only */
+@@ -210,7 +210,7 @@ _XimProtoKeyreleaseFilter(
+ 
+     if (_XimIsFabricatedSerial(im, ev)) {
+ 	_XimPendingFilter(ic);
+-	_XimUnfabricateSerial(im, ev);
++	_XimUnfabricateSerial(im, ic, ev);
+ 	return NOTFILTERD;
+     }
+     /* w=0 is used for _XimIsFabricatedSerial() only */
+diff --git a/modules/im/ximcp/imDefLkup.c b/modules/im/ximcp/imDefLkup.c
+index 6b2d27dc..326339fe 100644
+--- a/modules/im/ximcp/imDefLkup.c
++++ b/modules/im/ximcp/imDefLkup.c
+@@ -377,10 +377,20 @@ _XimFabricateSerial(
+ Bool
+ _XimUnfabricateSerial(
+     Xim			 im,
++    Xic			 ic,
+     XKeyEvent		*event)
+ {
++    if (!im->private.proto.enable_fabricated_order) {
++	UNMARK_FABRICATED(im);
++	return True;
++    }
+     /* GTK2 XIM module sets serial=0. */
+-    if (!event->serial || !im->private.proto.enable_fabricated_order) {
++    if (!event->serial) {
++	/* _XimCommitRecv() sets event->serial and call _XimFabricateSerial()
++	 * but GTK2 XIM always reset event->serial=0 with XFilterEvent().
++	 */
++	if (ic && ic->private.proto.commit_info)
++	    im->private.proto.fabricated_serial = 0;
+ 	UNMARK_FABRICATED(im);
+ 	return True;
+     }
+diff --git a/src/xlibi18n/XimintP.h b/src/xlibi18n/XimintP.h
+index 715800c7..fe52231e 100644
+--- a/src/xlibi18n/XimintP.h
++++ b/src/xlibi18n/XimintP.h
+@@ -319,6 +319,7 @@ _XimFabricateSerial(
+ Bool
+ _XimUnfabricateSerial(
+     Xim                  im,
++    Xic                  ic,
+     XKeyEvent           *event);
+ 
+ Bool
+-- 
+2.47.1
+

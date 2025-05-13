@@ -1,0 +1,58 @@
+From 9abd669f8826909a715e9b19531fd687800ce44c Mon Sep 17 00:00:00 2001
+From: Takao Fujiwara <tfujiwar@redhat.com>
+Date: Fri, 26 Apr 2024 01:29:39 +0900
+Subject: [PATCH libX11 7/7] imDefIm: Add LIBX11_ENABLE_FABRICATED_ORDER env
+
+If an XIM application does not return the XKeyEvent from XNextEvent()
+to XFilterEvent(), a timeout is reached and the behavior is fallen
+back to the previous one with a warning messsage and we can ask
+the application to send the XKeyEvent to XFilterEvent() but also
+libX11 provides LIBX11_ENABLE_FABRICATED_ORDER environment variable.
+If the application runs with LIBX11_ENABLE_FABRICATED_ORDER=0, the
+previous behavior is available until the application is fixed.
+
+Closes: !246
+Part-of: <https://gitlab.freedesktop.org/xorg/lib/libx11/-/merge_requests/246>
+(cherry picked from commit 90b8fc65da1e773b0091a50be46b23609591e8b7)
+---
+ modules/im/ximcp/imDefIm.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/modules/im/ximcp/imDefIm.c b/modules/im/ximcp/imDefIm.c
+index 7eba0b34..f42aa92c 100644
+--- a/modules/im/ximcp/imDefIm.c
++++ b/modules/im/ximcp/imDefIm.c
+@@ -63,6 +63,8 @@ PERFORMANCE OF THIS SOFTWARE.
+ #include "Ximint.h"
+ 
+ #include <limits.h>
++#include <stdlib.h>
++#include <strings.h>
+ 
+ int
+ _XimCheckDataSize(
+@@ -400,6 +402,7 @@ _XimPreConnect(
+     Atom	   *atoms;
+     Window	    im_window = 0;
+     register int    i;
++    const char	   *env_enable_fabricated_order;
+ 
+     if((imserver = XInternAtom(display, XIM_SERVERS, True)) == (Atom)None)
+ 	return False;
+@@ -433,6 +436,13 @@ _XimPreConnect(
+     im->private.proto.fabricated_serial = 0;
+     im->private.proto.fabricated_time = 0;
+     im->private.proto.enable_fabricated_order = True;
++    env_enable_fabricated_order = getenv("LIBX11_ENABLE_FABRICATED_ORDER");
++    if (env_enable_fabricated_order && *env_enable_fabricated_order) {
++	if (!strncasecmp(env_enable_fabricated_order, "0", 2) ||
++	    !strncasecmp(env_enable_fabricated_order, "false", 6)) {
++	    im->private.proto.enable_fabricated_order = False;
++	}
++    }
+     return True;
+ }
+ 
+-- 
+2.47.1
+

@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.7.0
-Release: 9%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 11%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 URL: http://www.x.org
 
@@ -32,6 +32,18 @@ Patch8: 0003-XCreatePixmap-trigger-BadValue-error-for-out-of-rang.patch
 
 # CVE-2023-43787
 Patch9: 0001-CVE-2023-43787-Integer-overflow-in-XCreateImage-lead.patch
+
+# https://issues.redhat.com/browse/RHEL-58298
+Patch10: 0001-imDefLkup-verify-that-a-pointer-isn-t-NULL-before-us.patch
+
+# https://issues.redhat.com/browse/RHEL-69791
+Patch11: 0001-ximcp-Unmark-to-fabricate-key-events-with-XKeyEvent-.patch
+Patch12: 0002-imDefLkup-Commit-first-info-in-XimCommitInfo.patch
+Patch13: 0003-imDefLkup-Mark-and-unmark-fabricated-with-serial-0.patch
+Patch14: 0004-ximcp-Add-fabricated_time-in-XimProtoPrivate-for-tim.patch
+Patch15: 0005-Accept-anon-windows-in-XFilterEvent-to-update-XIM-st.patch
+Patch16: 0006-ximcp-Unmark-fabricated-with-serial-0-and-Xic-commit.patch
+Patch17: 0007-imDefIm-Add-LIBX11_ENABLE_FABRICATED_ORDER-env.patch
 
 BuildRequires: make
 BuildRequires: xorg-x11-util-macros >= 1.11
@@ -135,6 +147,13 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Fri Dec 13 2024 Olivier Fourdan <ofourdan@redhat.com> - 1.7.0-11
+- Backport fixes for XIM input sometimes jumbled (RHEL-69791)
+
+* Fri Sep 13 2024 José Expósito <jexposit@redhat.com> - 1.7.0-10
+- Backport NULL check to avoid a crash
+  Resolves: https://issues.redhat.com/browse/RHEL-58298
+
 * Wed Oct 11 2023 José Expósito <jexposit@redhat.com> - 1.7.0-9
 - Fix CVE-2023-43785: out-of-bounds memory access in _XkbReadKeySyms()
 - Fix CVE-2023-43786: stack exhaustion from infinite recursion in

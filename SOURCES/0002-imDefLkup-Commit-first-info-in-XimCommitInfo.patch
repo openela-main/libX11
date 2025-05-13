@@ -1,0 +1,158 @@
+From a1037538b74e4016c3a1c2ebef9b1836811ed687 Mon Sep 17 00:00:00 2001
+From: Takao Fujiwara <tfujiwar@redhat.com>
+Date: Fri, 12 Apr 2024 10:21:43 +0900
+Subject: [PATCH libX11 2/7] imDefLkup: Commit first info in XimCommitInfo
+
+Xic.private.proto.commit_info can receive multiple XimCommitInfo
+when typing keys very quickly like an bar code scanner (or evemu-play)
+and the first info in XimCommitInfo should be committed to keep
+the typing key order.
+
+This and 041b5291 are same patches but the regression issues will be
+fixed by the later patches.
+
+Closes: #198
+Fixes: 041b5291 ("imDefLkup: Commit first info in XimCommitInfo")
+Part-of: <https://gitlab.freedesktop.org/xorg/lib/libx11/-/merge_requests/246>
+(cherry picked from commit c7790072657f9fdbe8cda031776617088c5f11db)
+---
+ modules/im/ximcp/imDefLkup.c | 60 +++++++++++++++++++++++++++++-------
+ 1 file changed, 49 insertions(+), 11 deletions(-)
+
+diff --git a/modules/im/ximcp/imDefLkup.c b/modules/im/ximcp/imDefLkup.c
+index a6923d5b..31205e6b 100644
+--- a/modules/im/ximcp/imDefLkup.c
++++ b/modules/im/ximcp/imDefLkup.c
+@@ -650,18 +650,29 @@ _XimRegCommitInfo(
+ }
+ 
+ static void
+-_XimUnregCommitInfo(
+-    Xic			ic)
++_XimUnregRealCommitInfo(
++    Xic			ic,
++    Bool		reverse)
+ {
+     XimCommitInfo	info;
++    XimCommitInfo	prev_info = NULL;
+ 
+-    if (!(info = ic->private.proto.commit_info))
++    info = ic->private.proto.commit_info;
++    while (reverse && info) {
++	if (!info->next)
++	    break;
++	prev_info = info;
++	info = info->next;
++    }
++    if (!info)
+ 	return;
+ 
+-
+     Xfree(info->string);
+     Xfree(info->keysym);
+-    ic->private.proto.commit_info = info->next;
++    if (prev_info)
++	prev_info->next = info->next;
++    else
++	ic->private.proto.commit_info = info->next;
+     Xfree(info);
+ 
+     /*
+@@ -679,6 +690,20 @@ _XimUnregCommitInfo(
+     return;
+ }
+ 
++static void
++_XimUnregCommitInfo(
++    Xic			ic)
++{
++    _XimUnregRealCommitInfo(ic, False);
++}
++
++static void
++_XimUnregFirstCommitInfo(
++    Xic			ic)
++{
++    _XimUnregRealCommitInfo(ic, True);
++}
++
+ void
+ _XimFreeCommitInfo(
+     Xic			ic)
+@@ -688,6 +713,19 @@ _XimFreeCommitInfo(
+     return;
+ }
+ 
++static XimCommitInfo
++_XimFirstCommitInfo(
++    Xic			ic)
++{
++    XimCommitInfo info = ic->private.proto.commit_info;
++    while (info) {
++	if (!info->next)
++	    break;
++	info = info->next;
++    }
++    return info;
++}
++
+ static Bool
+ _XimProcKeySym(
+     Xic			  ic,
+@@ -1082,7 +1120,7 @@ _XimProtoMbLookupString(
+ 	state = &tmp_state;
+ 
+     if ((ev->type == KeyPress) && (ev->keycode == 0)) { /* Filter function */
+-	if (!(info = ic->private.proto.commit_info)) {
++	if (!(info = _XimFirstCommitInfo(ic))) {
+ 	    *state = XLookupNone;
+ 	    return 0;
+ 	}
+@@ -1098,7 +1136,7 @@ _XimProtoMbLookupString(
+ 	    else
+ 		*state = XLookupKeySym;
+ 	}
+-	_XimUnregCommitInfo(ic);
++	_XimUnregFirstCommitInfo(ic);
+ 
+     } else  if (ev->type == KeyPress) {
+ 	ret = _XimLookupMBText(ic, ev, buffer, bytes, keysym, NULL);
+@@ -1145,7 +1183,7 @@ _XimProtoWcLookupString(
+ 	state = &tmp_state;
+ 
+     if (ev->type == KeyPress && ev->keycode == 0) { /* Filter function */
+-	if (!(info = ic->private.proto.commit_info)) {
++	if (!(info = _XimFirstCommitInfo(ic))) {
+            *state = XLookupNone;
+ 	    return 0;
+ 	}
+@@ -1161,7 +1199,7 @@ _XimProtoWcLookupString(
+ 	    else
+ 		*state = XLookupKeySym;
+ 	}
+-	_XimUnregCommitInfo(ic);
++	_XimUnregFirstCommitInfo(ic);
+ 
+     } else if (ev->type == KeyPress) {
+ 	ret = _XimLookupWCText(ic, ev, buffer, bytes, keysym, NULL);
+@@ -1208,7 +1246,7 @@ _XimProtoUtf8LookupString(
+ 	state = &tmp_state;
+ 
+     if (ev->type == KeyPress && ev->keycode == 0) { /* Filter function */
+-	if (!(info = ic->private.proto.commit_info)) {
++	if (!(info = _XimFirstCommitInfo(ic))) {
+            *state = XLookupNone;
+ 	    return 0;
+ 	}
+@@ -1224,7 +1262,7 @@ _XimProtoUtf8LookupString(
+ 	    else
+ 		*state = XLookupKeySym;
+ 	}
+-	_XimUnregCommitInfo(ic);
++	_XimUnregFirstCommitInfo(ic);
+ 
+     } else if (ev->type == KeyPress) {
+ 	ret = _XimLookupUTF8Text(ic, ev, buffer, bytes, keysym, NULL);
+-- 
+2.47.1
+
