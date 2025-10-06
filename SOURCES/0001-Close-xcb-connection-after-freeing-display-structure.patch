@@ -1,0 +1,82 @@
+From f3d6ebac35301d4ad068e307f0fbe6aa12ccbccb Mon Sep 17 00:00:00 2001
+From: Olivier Fourdan <ofourdan@redhat.com>
+Date: Fri, 9 Aug 2024 09:21:31 +0200
+Subject: [PATCH libX11] Close xcb connection after freeing display structure
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Commit 1472048b7 to fix a colormap threading issue added a display
+lock/unlock and a call to SyncHandle() to _XcmsFreeClientCmaps().
+
+When running synchronized, that means calling XSync().
+
+_XcmsFreeClientCmaps() is called from _XFreeDisplayStructure() via
+XCloseDisplay() after the xcb connection is closed.
+
+So when running synchronized, we may end up calling XSync() after the
+xcb connection to the display is closed, which will generate a spurious
+XIO error:
+
+  | #0 in _XDefaultIOError () at /lib64/libX11.so.6
+  | #1 in _XIOError () at /lib64/libX11.so.6
+  | #2 in _XReply () at /lib64/libX11.so.6
+  | #3 in XSync () at /lib64/libX11.so.6
+  | #4 in _XSyncFunction () at /lib64/libX11.so.6
+  | 8#5 in _XFreeDisplayStructure () at /lib64/libX11.so.6
+  | 8#6 in XCloseDisplay () at /lib64/libX11.so.6
+
+To avoid that issue, closed the xcb connection to the display last.
+
+v2: And same in OutOfMemory() as well (José Expósito)
+
+Signed-off-by: Olivier Fourdan <ofourdan@redhat.com>
+Reviewed-by: José Expósito <jexposit@redhat.com>
+Part-of: <https://gitlab.freedesktop.org/xorg/lib/libx11/-/merge_requests/264>
+---
+ src/ClDisplay.c | 4 +++-
+ src/OpenDis.c   | 7 +++++--
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/src/ClDisplay.c b/src/ClDisplay.c
+index aa904e51..31d3a841 100644
+--- a/src/ClDisplay.c
++++ b/src/ClDisplay.c
+@@ -47,6 +47,7 @@ XCloseDisplay (
+ {
+ 	register _XExtension *ext;
+ 	register int i;
++	xcb_connection_t *connection;
+ 
+ 	if (!(dpy->flags & XlibDisplayClosing))
+ 	{
+@@ -68,7 +69,8 @@ XCloseDisplay (
+ 	    if (X_DPY_GET_REQUEST(dpy) != X_DPY_GET_LAST_REQUEST_READ(dpy))
+ 		XSync(dpy, 1);
+ 	}
+-	xcb_disconnect(dpy->xcb->connection);
++	connection = dpy->xcb->connection;
+ 	_XFreeDisplayStructure (dpy);
++	xcb_disconnect(connection);
+ 	return 0;
+ }
+diff --git a/src/OpenDis.c b/src/OpenDis.c
+index 89a0ebdf..6cc43ba3 100644
+--- a/src/OpenDis.c
++++ b/src/OpenDis.c
+@@ -709,7 +709,10 @@ void _XFreeDisplayStructure(Display *dpy)
+ 
+ static void OutOfMemory(Display *dpy)
+ {
+-    if(dpy->xcb->connection)
+-	xcb_disconnect(dpy->xcb->connection);
++    xcb_connection_t *connection = dpy->xcb->connection;
++
+     _XFreeDisplayStructure (dpy);
++
++    if(connection)
++	xcb_disconnect(connection);
+ }
+-- 
+2.47.1
+
