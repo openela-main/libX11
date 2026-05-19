@@ -4,9 +4,9 @@
 
 Summary: Core X11 protocol client library
 Name: libX11
-Version: 1.7.0
-Release: 11%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
-License: MIT
+Version: 1.8.12
+Release: 1%{?dist}
+License: MIT AND X11
 URL: http://www.x.org
 
 %if 0%{?gitdate}
@@ -14,37 +14,13 @@ Source0:    %{tarball}-%{gitdate}.tar.bz2
 Source1:    make-git-snapshot.sh
 Source2:    commitid
 %else
-Source0: https://xorg.freedesktop.org/archive/individual/lib/%{name}-%{version}.tar.bz2
+Source0: https://xorg.freedesktop.org/archive/individual/lib/%{name}-%{version}.tar.xz
 %endif
 
+Patch1: 0001-Lower-autoconf-requirement-to-2.69.patch
 Patch2: dont-forward-keycode-0.patch
-Patch3: 0001-makekeys-handle-the-new-_EVDEVK-xorgproto-symbols.patch
-# CVE-2023-3138
-Patch4: 0001-InitExt.c-Add-bounds-checks-for-extension-request-ev.patch
 
-# CVE-2023-43785
-Patch5: 0001-CVE-2023-43785-out-of-bounds-memory-access-in-_XkbRe.patch
-
-# CVE-2023-43786
-Patch6: 0001-CVE-2023-43786-stack-exhaustion-from-infinite-recurs.patch
-Patch7: 0002-XPutImage-clip-images-to-maximum-height-width-allowe.patch
-Patch8: 0003-XCreatePixmap-trigger-BadValue-error-for-out-of-rang.patch
-
-# CVE-2023-43787
-Patch9: 0001-CVE-2023-43787-Integer-overflow-in-XCreateImage-lead.patch
-
-# https://issues.redhat.com/browse/RHEL-58298
-Patch10: 0001-imDefLkup-verify-that-a-pointer-isn-t-NULL-before-us.patch
-
-# https://issues.redhat.com/browse/RHEL-69791
-Patch11: 0001-ximcp-Unmark-to-fabricate-key-events-with-XKeyEvent-.patch
-Patch12: 0002-imDefLkup-Commit-first-info-in-XimCommitInfo.patch
-Patch13: 0003-imDefLkup-Mark-and-unmark-fabricated-with-serial-0.patch
-Patch14: 0004-ximcp-Add-fabricated_time-in-XimProtoPrivate-for-tim.patch
-Patch15: 0005-Accept-anon-windows-in-XFilterEvent-to-update-XIM-st.patch
-Patch16: 0006-ximcp-Unmark-fabricated-with-serial-0-and-Xic-commit.patch
-Patch17: 0007-imDefIm-Add-LIBX11_ENABLE_FABRICATED_ORDER-env.patch
-
+BuildRequires: libtool
 BuildRequires: make
 BuildRequires: xorg-x11-util-macros >= 1.11
 BuildRequires: pkgconfig(xproto) >= 7.0.15
@@ -119,7 +95,7 @@ make %{?_smp_mflags} check
 %{_libdir}/libX11-xcb.so.1.0.0
 
 %files common
-%doc AUTHORS COPYING README.md NEWS
+%doc AUTHORS COPYING README.md
 %{_datadir}/X11/locale/
 %{_datadir}/X11/XErrorDB
 %dir /var/cache/libX11
@@ -147,6 +123,17 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Wed Nov 05 2025 RHEL Packaging Agent <jotnar@redhat.com> - 1.8.12-1
+- Rebase to version 1.8.12
+- Update license to MIT AND X11 (SPDX migration)
+- Change source format from .tar.bz2 to .tar.xz
+- Add libtool as BuildRequires
+- Remove CVE patches (now included upstream)
+- Add patch to lower autoconf requirement to 2.69
+- Update dont-forward-keycode-0.patch for new codebase
+- Remove NEWS from %doc (file not present in 1.8.12)
+- Resolves: RHEL-111537
+
 * Fri Dec 13 2024 Olivier Fourdan <ofourdan@redhat.com> - 1.7.0-11
 - Backport fixes for XIM input sometimes jumbled (RHEL-69791)
 
