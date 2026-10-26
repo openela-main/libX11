@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.6.8
-Release: 9%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 10%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://www.x.org
@@ -44,6 +44,10 @@ Patch13: 0001-Avoid-recursing-through-_XError-due-to-sequence-adju.patch
 
 # https://issues.redhat.com/browse/RHEL-58444
 Patch14: 0001-imDefLkup-verify-that-a-pointer-isn-t-NULL-before-us.patch
+
+# CVE-2026-88806
+# https://gitlab.freedesktop.org/xorg/lib/libx11/-/commit/6d4432b13c0b3b6a644c13de9c793a14db48d545
+Patch15: 0001-xkb-Check-the-keysym-range-in-_XkbReadKeyActions-CVE.patch
 
 BuildRequires: xorg-x11-util-macros >= 1.11
 BuildRequires: pkgconfig(xproto) >= 7.0.15
@@ -97,6 +101,7 @@ libX11/libxcb interoperability library
 %patch12 -p1 -b .cve-2023-43787
 %patch13 -p1 -b .rhel-23452
 %patch14 -p1 -b .rhel-58444
+%patch15 -p1 -b .cve-2026-88806
 
 %build
 autoreconf -v --install --force
@@ -161,6 +166,10 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Thu Oct 22 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.6.8-10
+- CVE-2026-88806 libX11: libX11: Heap-based buffer overflow via malicious X server
+  Resolves: https://issues.redhat.com/browse/RHEL-267125
+
 * Fri Sep 13 2024 José Expósito <jexposit@redhat.com> - 1.6.8-9
 - Backport NULL check to avoid a crash
   Resolves: https://issues.redhat.com/browse/RHEL-58444
