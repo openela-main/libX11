@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.8.10
-Release: 1%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 1%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}.1
 License: MIT AND X11
 URL: http://www.x.org
 
@@ -21,6 +21,8 @@ Source0: https://xorg.freedesktop.org/archive/individual/lib/%{name}-%{version}.
 Patch02: dont-forward-keycode-0.patch
 # https://gitlab.freedesktop.org/xorg/lib/libx11/-/merge_requests/264
 Patch03: 0001-Close-xcb-connection-after-freeing-display-structure.patch
+# https://gitlab.freedesktop.org/xorg/lib/libx11/-/merge_requests/309
+Patch04: libX11-1.8.10-CVE-2026-88806.patch
 
 BuildRequires: libtool
 BuildRequires: make
@@ -125,6 +127,11 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Thu Oct 22 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.8.10-1.1
+- CVE-2026-88806 libX11: libX11: Heap-based buffer overflow via malicious X server
+  X server
+  Resolves: https://issues.redhat.com/browse/RHEL-267123
+
 * Thu Dec 05 2024 Olivier Fourdan <ofourdan@redhat.com>  - 1.8.10-1
 - Rebase to 1.8.10
   Resolves: https://issues.redhat.com/browse/RHEL-70185
