@@ -19,7 +19,7 @@ Source0: https://xorg.freedesktop.org/archive/individual/lib/%{name}-%{version}.
 
 Patch1: 0001-Lower-autoconf-requirement-to-2.69.patch
 Patch2: dont-forward-keycode-0.patch
-# https://gitlab.freedesktop.org/xorg/lib/libx11/-/commit/6d4432b13c0b3b6a644c13de9c793a14db48d545
+# https://gitlab.freedesktop.org/xorg/lib/libx11/-/commit/f371943bfc62e9951bf8e27174df8790f320b635
 Patch3: libX11-1.8.12-CVE-2026-88806.patch
 
 BuildRequires: libtool
@@ -125,9 +125,8 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
-* Thu Oct 22 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.8.12-1.1
+* Mon Sep 28 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.8.12-1.1
 - CVE-2026-88806 libX11: libX11: Heap-based buffer overflow via malicious X server
-  X server
 
 * Wed Nov 05 2025 RHEL Packaging Agent <jotnar@redhat.com> - 1.8.12-1
 - Rebase to version 1.8.12
