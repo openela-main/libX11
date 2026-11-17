@@ -5,7 +5,7 @@
 Summary: Core X11 protocol client library
 Name: libX11
 Version: 1.8.13
-Release: 1%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+Release: 1%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}.1
 License: MIT AND X11
 URL: http://www.x.org
 
@@ -19,6 +19,9 @@ Source0: https://xorg.freedesktop.org/archive/individual/lib/%{name}-%{version}.
 
 
 Patch: dont-forward-keycode-0.patch
+
+# https://gitlab.freedesktop.org/xorg/lib/libx11/-/commit/f371943bfc62e9951bf8e27174df8790f320b635
+Patch: libX11-1.8.13-CVE-2026-88806.patch
 
 BuildRequires: libtool
 BuildRequires: make
@@ -123,6 +126,10 @@ make %{?_smp_mflags} check
 %{_mandir}/man5/*.5*
 
 %changelog
+* Mon Sep 28 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.8.13-1.1
+- CVE-2026-88806 libX11: libX11: Heap-based buffer overflow via malicious X server
+  Resolves: https://redhat.atlassian.net/browse/RHEL-267129
+
 * Wed May 27 2026 Olivier Fourdan <ofourdan@redhat.com>  - 1.8.13-1
 - Rebase to 1.8.13
   Resolves: https://redhat.atlassian.net/browse/RHEL-179075
